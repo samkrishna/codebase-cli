@@ -13,7 +13,50 @@ use commands::tickets::TicketCommands;
 
 #[derive(Parser)]
 #[command(name = "cb")]
+#[command(version)]
 #[command(about = "A command-line utility for the CodebaseHQ API")]
+#[command(long_about = None)]
+#[command(after_help = "\
+GETTING STARTED:
+    1. Obtain your API username and key from CodebaseHQ
+    2. Run: cb login <account/username> <api-key>
+    3. Credentials are stored in ~/.config/cb/config.toml
+
+COMMANDS IN DETAIL:
+    login          Store API credentials for future use
+    project        List, show, create, update, delete projects; manage groups and user assignments
+    repo           List, show, create, delete repositories; browse branches, commits, and files;
+                   manage hooks and deployments; create and manage merge requests
+    ticket         List, search, create tickets; add notes to update ticket fields; manage
+                   watchers; view statuses, priorities, categories, and types
+    milestone      List, create, update milestones with deadlines and responsible users
+    activity       View account-wide or project-specific activity feeds with pagination
+    version        Display the current version of cb
+
+EXAMPLES:
+    cb login mycompany/jdoe abc123def456
+    cb project list
+    cb repo branches my-project my-repo
+    cb repo commits my-project my-repo main --path src/
+    cb ticket create my-project \"Fix bug\" --ticket-type bug --priority-id 1
+    cb ticket add-note my-project 42 --content \"Fixed\" --status-id 3
+    cb repo create-mr my-project my-repo feature main \"Add feature\"
+    cb activity account --page 2
+
+RETRY BEHAVIOR:
+    The client automatically retries with exponential backoff (1s, 2s, 4s, 8s, 16s)
+    on HTTP 429 (rate limit), 503 (service unavailable), and 529 (overloaded) responses.
+
+ENVIRONMENT:
+    Credentials file:  ~/.config/cb/config.toml
+    API base URL:      https://api3.codebasehq.com
+
+AUTHOR:
+    Sam Krishna <samkrishna@gmail.com>
+
+SEE ALSO:
+    CodebaseHQ API docs: https://support.codebasehq.com/kb
+")]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
