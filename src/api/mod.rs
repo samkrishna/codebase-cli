@@ -1,5 +1,6 @@
 pub mod activity;
 pub mod client;
+pub mod config;
 pub mod milestones;
 pub mod models;
 pub mod projects;

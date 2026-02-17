@@ -12,11 +12,13 @@ path = "src/main.rs"
 [dependencies]
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }
+dirs = "6"
 quick-xml = { version = "0.37", features = ["serialize"] }
 reqwest = { version = "0.12", features = ["json"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["full"] }
+toml = "0.8"
 
 [dev-dependencies]
 mockito = "1"

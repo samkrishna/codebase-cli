@@ -1,5 +1,10 @@
 use anyhow::{Context, Result};
-use reqwest::{Client, Method, Response};
+use reqwest::{Client, Method, Response, StatusCode};
+use std::time::Duration;
+use tokio::time::sleep;
+
+const MAX_RETRIES: u32 = 5;
+const INITIAL_BACKOFF_MS: u64 = 1000;
 
 #[derive(Debug, Clone)]
 pub struct CodebaseClient {
@@ -41,6 +46,26 @@ impl CodebaseClient {
         format!("{}{}", self.base_url, path)
     }
 
+    async fn send_request(
+        &self,
+        method: &Method,
+        url: &str,
+        body: Option<&str>,
+    ) -> Result<Response> {
+        let mut req = self
+            .http
+            .request(method.clone(), url)
+            .basic_auth(&self.username, Some(&self.api_key))
+            .header("Accept", "application/xml")
+            .header("Content-Type", "application/xml");
+
+        if let Some(body) = body {
+            req = req.body(body.to_string());
+        }
+
+        req.send().await.context("Failed to send request")
+    }
+
     pub async fn request(
         &self,
         method: Method,
@@ -48,19 +73,32 @@ impl CodebaseClient {
         body: Option<String>,
     ) -> Result<Response> {
         let url = self.url(path);
-        let mut req = self
-            .http
-            .request(method, &url)
-            .basic_auth(&self.username, Some(&self.api_key))
-            .header("Accept", "application/xml")
-            .header("Content-Type", "application/xml");
+        let body_ref = body.as_deref();
 
-        if let Some(body) = body {
-            req = req.body(body);
+        for attempt in 0..MAX_RETRIES {
+            let resp = self.send_request(&method, &url, body_ref).await?;
+
+            if resp.status() == StatusCode::from_u16(529).unwrap_or(StatusCode::SERVICE_UNAVAILABLE)
+                || resp.status() == StatusCode::TOO_MANY_REQUESTS
+                || resp.status() == StatusCode::SERVICE_UNAVAILABLE
+            {
+                let backoff = Duration::from_millis(INITIAL_BACKOFF_MS * 2u64.pow(attempt));
+                eprintln!(
+                    "Server returned {} — retrying in {}s (attempt {}/{})",
+                    resp.status(),
+                    backoff.as_secs(),
+                    attempt + 1,
+                    MAX_RETRIES
+                );
+                sleep(backoff).await;
+                continue;
+            }
+
+            return Ok(resp);
         }
 
-        let resp = req.send().await.context("Failed to send request")?;
-        Ok(resp)
+        // Final attempt with no retry
+        self.send_request(&method, &url, body_ref).await
     }
 
     pub async fn get(&self, path: &str) -> Result<String> {

@@ -4,6 +4,7 @@ mod commands;
 use clap::Parser;
 
 use api::client::CodebaseClient;
+use api::config::Config;
 use commands::activity::ActivityCommands;
 use commands::milestones::MilestoneCommands;
 use commands::projects::ProjectCommands;
@@ -20,6 +21,13 @@ struct Cli {
 
 #[derive(clap::Subcommand)]
 enum Commands {
+    /// Store API credentials
+    Login {
+        /// API username (format: account/username)
+        api_username: String,
+        /// API key
+        api_key: String,
+    },
     /// Manage projects
     Project {
         #[command(subcommand)]
@@ -49,22 +57,55 @@ enum Commands {
     Version,
 }
 
+fn load_client() -> anyhow::Result<CodebaseClient> {
+    let config = Config::load()?;
+    Ok(CodebaseClient::new(
+        config.account().to_string(),
+        config.api_username.clone(),
+        config.api_key,
+    ))
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
-    // Build client from environment variables (placeholder — auth not implemented)
-    let account = std::env::var("CODEBASE_ACCOUNT").unwrap_or_default();
-    let username = std::env::var("CODEBASE_USERNAME").unwrap_or_default();
-    let api_key = std::env::var("CODEBASE_API_KEY").unwrap_or_default();
-    let client = CodebaseClient::new(account, username, api_key);
-
     match cli.command {
-        Commands::Project { command } => commands::projects::execute(&client, command).await?,
-        Commands::Repo { command } => commands::repositories::execute(&client, command).await?,
-        Commands::Ticket { command } => commands::tickets::execute(&client, command).await?,
-        Commands::Milestone { command } => commands::milestones::execute(&client, command).await?,
-        Commands::Activity { command } => commands::activity::execute(&client, command).await?,
+        Commands::Login {
+            api_username,
+            api_key,
+        } => {
+            let config = Config {
+                api_username: api_username.clone(),
+                api_key,
+            };
+            config.save()?;
+            println!(
+                "Credentials saved for {} at {}",
+                api_username,
+                Config::config_path()?.display()
+            );
+        }
+        Commands::Project { command } => {
+            let client = load_client()?;
+            commands::projects::execute(&client, command).await?;
+        }
+        Commands::Repo { command } => {
+            let client = load_client()?;
+            commands::repositories::execute(&client, command).await?;
+        }
+        Commands::Ticket { command } => {
+            let client = load_client()?;
+            commands::tickets::execute(&client, command).await?;
+        }
+        Commands::Milestone { command } => {
+            let client = load_client()?;
+            commands::milestones::execute(&client, command).await?;
+        }
+        Commands::Activity { command } => {
+            let client = load_client()?;
+            commands::activity::execute(&client, command).await?;
+        }
         Commands::Version => {
             println!("cb {}", env!("CARGO_PKG_VERSION"));
         }
