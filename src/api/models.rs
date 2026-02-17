@@ -84,6 +84,117 @@ pub struct Repositories {
     pub repositories: Vec<Repository>,
 }
 
+// ── Commits ──
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Commit {
+    #[serde(rename = "ref")]
+    pub commit_ref: Option<String>,
+    pub message: Option<String>,
+    #[serde(rename = "author-name")]
+    pub author_name: Option<String>,
+    #[serde(rename = "author-email")]
+    pub author_email: Option<String>,
+    #[serde(rename = "authored-at")]
+    pub authored_at: Option<String>,
+    #[serde(rename = "committer-name")]
+    pub committer_name: Option<String>,
+    #[serde(rename = "committer-email")]
+    pub committer_email: Option<String>,
+    #[serde(rename = "committed-at")]
+    pub committed_at: Option<String>,
+    #[serde(rename = "parent-refs")]
+    pub parent_refs: Option<String>,
+    #[serde(rename = "tree-ref")]
+    pub tree_ref: Option<String>,
+    #[serde(rename = "author-user")]
+    pub author_user: Option<String>,
+    #[serde(rename = "committer-user")]
+    pub committer_user: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Commits {
+    #[serde(rename = "commit", default)]
+    pub commits: Vec<Commit>,
+}
+
+// ── Deployments ──
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Deployment {
+    pub branch: Option<String>,
+    pub revision: Option<String>,
+    pub environment: Option<String>,
+    pub servers: Option<String>,
+}
+
+// ── Hooks ──
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Hook {
+    pub id: Option<i64>,
+    pub url: Option<String>,
+    pub username: Option<String>,
+    pub password: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Hooks {
+    #[serde(rename = "repository-hook", default)]
+    pub hooks: Vec<Hook>,
+}
+
+// ── Branches ──
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Branch {
+    pub name: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Branches {
+    #[serde(rename = "branch", default)]
+    pub branches: Vec<Branch>,
+}
+
+// ── Merge Requests ──
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MergeRequest {
+    pub id: Option<i64>,
+    #[serde(rename = "source-ref")]
+    pub source_ref: Option<String>,
+    #[serde(rename = "target-ref")]
+    pub target_ref: Option<String>,
+    pub subject: Option<String>,
+    pub status: Option<String>,
+    #[serde(rename = "user-id")]
+    pub user_id: Option<i64>,
+    #[serde(rename = "created-at")]
+    pub created_at: Option<String>,
+    #[serde(rename = "updated-at")]
+    pub updated_at: Option<String>,
+    #[serde(rename = "can-merge")]
+    pub can_merge: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MergeRequests {
+    #[serde(rename = "merge-request", default)]
+    pub merge_requests: Vec<MergeRequest>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MergeRequestComment {
+    pub content: Option<String>,
+    #[serde(rename = "user-id")]
+    pub user_id: Option<i64>,
+    pub action: Option<String>,
+    #[serde(rename = "created-at")]
+    pub created_at: Option<String>,
+}
+
 // ── Tickets ──
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
