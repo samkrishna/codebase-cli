@@ -1,8 +1,10 @@
 use anyhow::Result;
 use clap::Subcommand;
+use colored::Colorize;
 
 use crate::api::client::CodebaseClient;
 use crate::api::milestones;
+use crate::output;
 
 #[derive(Subcommand)]
 pub enum MilestoneCommands {
@@ -66,20 +68,23 @@ pub enum MilestoneCommands {
     },
 }
 
-pub async fn execute(client: &CodebaseClient, cmd: MilestoneCommands) -> Result<()> {
+pub async fn execute(client: &CodebaseClient, cmd: MilestoneCommands, json: bool) -> Result<()> {
     match cmd {
         MilestoneCommands::List { project } => {
-            let milestones = milestones::list_milestones(client, &project).await?;
-            for m in milestones {
-                println!(
-                    "{}: {} [{}] ({} -> {})",
-                    m.id.unwrap_or(0),
-                    m.name.unwrap_or_default(),
-                    m.status.unwrap_or_default(),
-                    m.start_at.unwrap_or_default(),
-                    m.deadline.unwrap_or_default()
-                );
-            }
+            let milestone_list = milestones::list_milestones(client, &project).await?;
+            output::print_list(json, &milestone_list, |milestones| {
+                for m in milestones {
+                    let status = output::colorize_status(m.status.as_deref().unwrap_or("unknown"));
+                    println!(
+                        "{}: {} [{}] ({} -> {})",
+                        m.id.unwrap_or(0),
+                        m.name.as_deref().unwrap_or("").bold(),
+                        status,
+                        m.start_at.as_deref().unwrap_or("").dimmed(),
+                        m.deadline.as_deref().unwrap_or("").dimmed()
+                    );
+                }
+            })?;
         }
         MilestoneCommands::Create {
             project,
@@ -103,11 +108,13 @@ pub async fn execute(client: &CodebaseClient, cmd: MilestoneCommands) -> Result<
                 status.as_deref(),
             )
             .await?;
-            println!(
-                "Created milestone {}: {}",
-                m.id.unwrap_or(0),
-                m.name.unwrap_or_default()
-            );
+            output::print_output(json, &m, || {
+                println!(
+                    "Created milestone {}: {}",
+                    m.id.unwrap_or(0),
+                    m.name.as_deref().unwrap_or("").bold()
+                );
+            })?;
         }
         MilestoneCommands::Update {
             project,
@@ -133,11 +140,13 @@ pub async fn execute(client: &CodebaseClient, cmd: MilestoneCommands) -> Result<
                 status.as_deref(),
             )
             .await?;
-            println!(
-                "Updated milestone {}: {}",
-                m.id.unwrap_or(0),
-                m.name.unwrap_or_default()
-            );
+            output::print_output(json, &m, || {
+                println!(
+                    "Updated milestone {}: {}",
+                    m.id.unwrap_or(0),
+                    m.name.as_deref().unwrap_or("").bold()
+                );
+            })?;
         }
     }
     Ok(())

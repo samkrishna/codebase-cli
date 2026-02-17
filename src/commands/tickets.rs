@@ -1,9 +1,11 @@
 use anyhow::Result;
 use clap::Subcommand;
+use colored::Colorize;
 
 use crate::api::client::CodebaseClient;
 use crate::api::models::NoteChanges;
 use crate::api::tickets;
+use crate::output;
 
 #[derive(Subcommand)]
 pub enum TicketCommands {
@@ -127,29 +129,35 @@ pub enum TicketCommands {
     },
 }
 
-pub async fn execute(client: &CodebaseClient, cmd: TicketCommands) -> Result<()> {
+pub async fn execute(client: &CodebaseClient, cmd: TicketCommands, json: bool) -> Result<()> {
     match cmd {
         TicketCommands::List { project } => {
             let tix = tickets::list_tickets(client, &project).await?;
-            for t in tix {
-                println!(
-                    "#{} [{}] {}",
-                    t.ticket_id.unwrap_or(0),
-                    t.ticket_type.unwrap_or_default(),
-                    t.summary.unwrap_or_default()
-                );
-            }
+            output::print_list(json, &tix, |tix| {
+                for t in tix {
+                    let tt = output::colorize_ticket_type(t.ticket_type.as_deref().unwrap_or(""));
+                    println!(
+                        "#{} [{}] {}",
+                        t.ticket_id.unwrap_or(0).to_string().bold(),
+                        tt,
+                        t.summary.as_deref().unwrap_or("")
+                    );
+                }
+            })?;
         }
         TicketCommands::Search { project, query } => {
             let tix = tickets::search_tickets(client, &project, &query).await?;
-            for t in tix {
-                println!(
-                    "#{} [{}] {}",
-                    t.ticket_id.unwrap_or(0),
-                    t.ticket_type.unwrap_or_default(),
-                    t.summary.unwrap_or_default()
-                );
-            }
+            output::print_list(json, &tix, |tix| {
+                for t in tix {
+                    let tt = output::colorize_ticket_type(t.ticket_type.as_deref().unwrap_or(""));
+                    println!(
+                        "#{} [{}] {}",
+                        t.ticket_id.unwrap_or(0).to_string().bold(),
+                        tt,
+                        t.summary.as_deref().unwrap_or("")
+                    );
+                }
+            })?;
         }
         TicketCommands::Create {
             project,
@@ -177,21 +185,25 @@ pub async fn execute(client: &CodebaseClient, cmd: TicketCommands) -> Result<()>
                 tags.as_deref(),
             )
             .await?;
-            println!(
-                "Created ticket #{}: {}",
-                t.ticket_id.unwrap_or(0),
-                t.summary.unwrap_or_default()
-            );
+            output::print_output(json, &t, || {
+                println!(
+                    "Created ticket #{}: {}",
+                    t.ticket_id.unwrap_or(0).to_string().bold(),
+                    t.summary.as_deref().unwrap_or("")
+                );
+            })?;
         }
         TicketCommands::Notes { project, ticket_id } => {
             let notes = tickets::list_ticket_notes(client, &project, ticket_id).await?;
-            for n in notes {
-                println!(
-                    "Note #{}: {}",
-                    n.id.unwrap_or(0),
-                    n.content.unwrap_or_default()
-                );
-            }
+            output::print_list(json, &notes, |notes| {
+                for n in notes {
+                    println!(
+                        "Note #{}: {}",
+                        n.id.unwrap_or(0).to_string().bold(),
+                        n.content.as_deref().unwrap_or("").dimmed()
+                    );
+                }
+            })?;
         }
         TicketCommands::AddNote {
             project,
@@ -232,13 +244,17 @@ pub async fn execute(client: &CodebaseClient, cmd: TicketCommands) -> Result<()>
                 private,
             )
             .await?;
-            println!("Added note #{}", n.id.unwrap_or(0));
+            output::print_output(json, &n, || {
+                println!("Added note #{}", n.id.unwrap_or(0).to_string().bold());
+            })?;
         }
         TicketCommands::Watchers { project, ticket_id } => {
             let watchers = tickets::list_watchers(client, &project, ticket_id).await?;
-            for w in watchers {
-                println!("User ID: {}", w.watcher.unwrap_or(0));
-            }
+            output::print_list(json, &watchers, |watchers| {
+                for w in watchers {
+                    println!("User ID: {}", w.watcher.unwrap_or(0));
+                }
+            })?;
         }
         TicketCommands::SetWatchers {
             project,
@@ -250,37 +266,53 @@ pub async fn execute(client: &CodebaseClient, cmd: TicketCommands) -> Result<()>
         }
         TicketCommands::Statuses { project } => {
             let statuses = tickets::list_statuses(client, &project).await?;
-            for s in statuses {
-                println!(
-                    "{}: {} (closed: {})",
-                    s.id.unwrap_or(0),
-                    s.name.unwrap_or_default(),
-                    s.treat_as_closed.unwrap_or(false)
-                );
-            }
+            output::print_list(json, &statuses, |statuses| {
+                for s in statuses {
+                    let closed =
+                        output::colorize_bool(s.treat_as_closed.unwrap_or(false), "closed", "open");
+                    println!(
+                        "{}: {} ({})",
+                        s.id.unwrap_or(0),
+                        s.name.as_deref().unwrap_or("").bold(),
+                        closed,
+                    );
+                }
+            })?;
         }
         TicketCommands::Priorities { project } => {
             let priorities = tickets::list_priorities(client, &project).await?;
-            for p in priorities {
-                println!(
-                    "{}: {} (default: {})",
-                    p.id.unwrap_or(0),
-                    p.name.unwrap_or_default(),
-                    p.default.unwrap_or(false)
-                );
-            }
+            output::print_list(json, &priorities, |priorities| {
+                for p in priorities {
+                    let name = output::colorize_priority(p.name.as_deref().unwrap_or(""));
+                    let default_marker = if p.default.unwrap_or(false) {
+                        " *".green().to_string()
+                    } else {
+                        String::new()
+                    };
+                    println!("{}: {}{}", p.id.unwrap_or(0), name, default_marker);
+                }
+            })?;
         }
         TicketCommands::Categories { project } => {
             let categories = tickets::list_categories(client, &project).await?;
-            for c in categories {
-                println!("{}: {}", c.id.unwrap_or(0), c.name.unwrap_or_default());
-            }
+            output::print_list(json, &categories, |categories| {
+                for c in categories {
+                    println!(
+                        "{}: {}",
+                        c.id.unwrap_or(0),
+                        c.name.as_deref().unwrap_or("").bold()
+                    );
+                }
+            })?;
         }
         TicketCommands::Types { project } => {
             let types = tickets::list_types(client, &project).await?;
-            for t in types {
-                println!("{}: {}", t.id.unwrap_or(0), t.name.unwrap_or_default());
-            }
+            output::print_list(json, &types, |types| {
+                for t in types {
+                    let name = output::colorize_ticket_type(t.name.as_deref().unwrap_or(""));
+                    println!("{}: {}", t.id.unwrap_or(0), name);
+                }
+            })?;
         }
     }
     Ok(())

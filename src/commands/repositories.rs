@@ -1,8 +1,10 @@
 use anyhow::Result;
 use clap::Subcommand;
+use colored::Colorize;
 
 use crate::api::client::CodebaseClient;
 use crate::api::repositories;
+use crate::output;
 
 #[derive(Subcommand)]
 pub enum RepoCommands {
@@ -183,34 +185,60 @@ pub enum RepoCommands {
     },
 }
 
-pub async fn execute(client: &CodebaseClient, cmd: RepoCommands) -> Result<()> {
+pub async fn execute(client: &CodebaseClient, cmd: RepoCommands, json: bool) -> Result<()> {
     match cmd {
         RepoCommands::List { project } => {
             let repos = repositories::list_repositories(client, &project).await?;
-            for r in repos {
-                println!(
-                    "{} ({}) clone: {}",
-                    r.name.unwrap_or_default(),
-                    r.permalink.unwrap_or_default(),
-                    r.clone_url.unwrap_or_default()
-                );
-            }
+            output::print_list(json, &repos, |repos| {
+                for r in repos {
+                    println!(
+                        "{} ({}) clone: {}",
+                        r.name.as_deref().unwrap_or("").bold(),
+                        r.permalink.as_deref().unwrap_or("").dimmed(),
+                        r.clone_url.as_deref().unwrap_or("").cyan()
+                    );
+                }
+            })?;
         }
         RepoCommands::Show { project, repo } => {
             let r = repositories::show_repository(client, &project, &repo).await?;
-            println!("Name:       {}", r.name.unwrap_or_default());
-            println!("Permalink:  {}", r.permalink.unwrap_or_default());
-            println!("Clone URL:  {}", r.clone_url.unwrap_or_default());
-            println!("Disk Usage: {} bytes", r.disk_usage.unwrap_or(0));
-            println!("Last Commit: {}", r.last_commit_ref.unwrap_or_default());
+            output::print_output(json, &r, || {
+                println!(
+                    "{}: {}",
+                    "Name".dimmed(),
+                    r.name.as_deref().unwrap_or("").bold()
+                );
+                println!(
+                    "{}: {}",
+                    "Permalink".dimmed(),
+                    r.permalink.as_deref().unwrap_or("")
+                );
+                println!(
+                    "{}: {}",
+                    "Clone URL".dimmed(),
+                    r.clone_url.as_deref().unwrap_or("").cyan()
+                );
+                println!(
+                    "{}: {} bytes",
+                    "Disk Usage".dimmed(),
+                    r.disk_usage.unwrap_or(0)
+                );
+                println!(
+                    "{}: {}",
+                    "Last Commit".dimmed(),
+                    r.last_commit_ref.as_deref().unwrap_or("")
+                );
+            })?;
         }
         RepoCommands::Create { project, name, scm } => {
             let r = repositories::create_repository(client, &project, &name, &scm).await?;
-            println!(
-                "Created repository: {} ({})",
-                r.name.unwrap_or_default(),
-                r.permalink.unwrap_or_default()
-            );
+            output::print_output(json, &r, || {
+                println!(
+                    "Created repository: {} ({})",
+                    r.name.as_deref().unwrap_or("").bold(),
+                    r.permalink.as_deref().unwrap_or("")
+                );
+            })?;
         }
         RepoCommands::Delete { project, repo } => {
             repositories::delete_repository(client, &project, &repo).await?;
@@ -227,15 +255,24 @@ pub async fn execute(client: &CodebaseClient, cmd: RepoCommands) -> Result<()> {
             } else {
                 repositories::list_commits(client, &project, &repo, &git_ref).await?
             };
-            for c in commits {
-                println!(
-                    "{} {} <{}> {}",
-                    c.commit_ref.unwrap_or_default(),
-                    c.author_name.unwrap_or_default(),
-                    c.author_email.unwrap_or_default(),
-                    c.message.unwrap_or_default().lines().next().unwrap_or("")
-                );
-            }
+            output::print_list(json, &commits, |commits| {
+                for c in commits {
+                    let sha = c.commit_ref.as_deref().unwrap_or("");
+                    let short_sha = if sha.len() > 7 { &sha[..7] } else { sha };
+                    println!(
+                        "{} {} <{}> {}",
+                        short_sha.yellow(),
+                        c.author_name.as_deref().unwrap_or("").bold(),
+                        c.author_email.as_deref().unwrap_or("").dimmed(),
+                        c.message
+                            .as_deref()
+                            .unwrap_or("")
+                            .lines()
+                            .next()
+                            .unwrap_or("")
+                    );
+                }
+            })?;
         }
         RepoCommands::Deploy {
             project,
@@ -255,7 +292,12 @@ pub async fn execute(client: &CodebaseClient, cmd: RepoCommands) -> Result<()> {
                 environment.as_deref(),
             )
             .await?;
-            println!("Deployed {} ({}) to {}", branch, revision, servers);
+            println!(
+                "Deployed {} ({}) to {}",
+                branch.green(),
+                &revision[..7.min(revision.len())].yellow(),
+                servers
+            );
         }
         RepoCommands::File {
             project,
@@ -268,9 +310,15 @@ pub async fn execute(client: &CodebaseClient, cmd: RepoCommands) -> Result<()> {
         }
         RepoCommands::Hooks { project, repo } => {
             let hooks = repositories::list_hooks(client, &project, &repo).await?;
-            for h in hooks {
-                println!("{}: {}", h.id.unwrap_or(0), h.url.unwrap_or_default());
-            }
+            output::print_list(json, &hooks, |hooks| {
+                for h in hooks {
+                    println!(
+                        "{}: {}",
+                        h.id.unwrap_or(0),
+                        h.url.as_deref().unwrap_or("").cyan()
+                    );
+                }
+            })?;
         }
         RepoCommands::CreateHook {
             project,
@@ -288,30 +336,38 @@ pub async fn execute(client: &CodebaseClient, cmd: RepoCommands) -> Result<()> {
                 password.as_deref(),
             )
             .await?;
-            println!(
-                "Created hook {}: {}",
-                h.id.unwrap_or(0),
-                h.url.unwrap_or_default()
-            );
+            output::print_output(json, &h, || {
+                println!(
+                    "Created hook {}: {}",
+                    h.id.unwrap_or(0),
+                    h.url.as_deref().unwrap_or("").cyan()
+                );
+            })?;
         }
         RepoCommands::Branches { project, repo } => {
             let branches = repositories::list_branches(client, &project, &repo).await?;
-            for b in branches {
-                println!("{}", b.name.unwrap_or_default());
-            }
+            output::print_list(json, &branches, |branches| {
+                for b in branches {
+                    println!("{}", b.name.as_deref().unwrap_or("").cyan());
+                }
+            })?;
         }
         RepoCommands::MergeRequests { project, repo } => {
             let mrs = repositories::list_merge_requests(client, &project, &repo).await?;
-            for mr in mrs {
-                println!(
-                    "#{} [{}] {} ({} -> {})",
-                    mr.id.unwrap_or(0),
-                    mr.status.unwrap_or_default(),
-                    mr.subject.unwrap_or_default(),
-                    mr.source_ref.unwrap_or_default(),
-                    mr.target_ref.unwrap_or_default()
-                );
-            }
+            output::print_list(json, &mrs, |mrs| {
+                for mr in mrs {
+                    let status =
+                        output::colorize_mr_status(mr.status.as_deref().unwrap_or("unknown"));
+                    println!(
+                        "#{} [{}] {} ({} -> {})",
+                        mr.id.unwrap_or(0).to_string().bold(),
+                        status,
+                        mr.subject.as_deref().unwrap_or(""),
+                        mr.source_ref.as_deref().unwrap_or("").cyan(),
+                        mr.target_ref.as_deref().unwrap_or("").green(),
+                    );
+                }
+            })?;
         }
         RepoCommands::ShowMr {
             project,
@@ -319,14 +375,30 @@ pub async fn execute(client: &CodebaseClient, cmd: RepoCommands) -> Result<()> {
             mr_id,
         } => {
             let mr = repositories::show_merge_request(client, &project, &repo, mr_id).await?;
-            println!("ID:         {}", mr.id.unwrap_or(0));
-            println!("Subject:    {}", mr.subject.unwrap_or_default());
-            println!("Status:     {}", mr.status.unwrap_or_default());
-            println!("Source:     {}", mr.source_ref.unwrap_or_default());
-            println!("Target:     {}", mr.target_ref.unwrap_or_default());
-            println!("Can Merge:  {}", mr.can_merge.unwrap_or(false));
-            println!("Created:    {}", mr.created_at.unwrap_or_default());
-            println!("Updated:    {}", mr.updated_at.unwrap_or_default());
+            output::print_output(json, &mr, || {
+                let status = output::colorize_mr_status(mr.status.as_deref().unwrap_or("unknown"));
+                let can_merge = output::colorize_bool(mr.can_merge.unwrap_or(false), "yes", "no");
+                println!("ID:         {}", mr.id.unwrap_or(0).to_string().bold());
+                println!("Subject:    {}", mr.subject.as_deref().unwrap_or(""));
+                println!("Status:     {}", status);
+                println!(
+                    "Source:     {}",
+                    mr.source_ref.as_deref().unwrap_or("").cyan()
+                );
+                println!(
+                    "Target:     {}",
+                    mr.target_ref.as_deref().unwrap_or("").green()
+                );
+                println!("Can Merge:  {}", can_merge);
+                println!(
+                    "Created:    {}",
+                    mr.created_at.as_deref().unwrap_or("").dimmed()
+                );
+                println!(
+                    "Updated:    {}",
+                    mr.updated_at.as_deref().unwrap_or("").dimmed()
+                );
+            })?;
         }
         RepoCommands::CreateMr {
             project,
@@ -344,11 +416,13 @@ pub async fn execute(client: &CodebaseClient, cmd: RepoCommands) -> Result<()> {
                 &subject,
             )
             .await?;
-            println!(
-                "Created merge request #{}: {}",
-                mr.id.unwrap_or(0),
-                mr.subject.unwrap_or_default()
-            );
+            output::print_output(json, &mr, || {
+                println!(
+                    "Created merge request #{}: {}",
+                    mr.id.unwrap_or(0).to_string().bold(),
+                    mr.subject.as_deref().unwrap_or("")
+                );
+            })?;
         }
         RepoCommands::CommentMr {
             project,
@@ -381,7 +455,7 @@ pub async fn execute(client: &CodebaseClient, cmd: RepoCommands) -> Result<()> {
             mr_id,
         } => {
             repositories::merge_merge_request(client, &project, &repo, mr_id).await?;
-            println!("Merged merge request #{}", mr_id);
+            println!("Merged merge request #{}", mr_id.to_string().bold());
         }
         RepoCommands::ReassignMr {
             project,

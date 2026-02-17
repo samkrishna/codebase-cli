@@ -26,10 +26,21 @@ The client automatically retries with exponential backoff on 429 (rate limit), 5
 cb <command> <subcommand> [options]
 ```
 
+### Global Flags
+
+```bash
+cb --json <command>       # Output results as JSON instead of colored text
+```
+
+### Contextual Defaults
+
+When run inside a git repository with a CodebaseHQ remote, `cb` auto-detects the project and repository from the `origin` remote URL. This means you can omit the project/repo arguments for `cb pr` commands when working inside a CodebaseHQ-cloned repo.
+
 ### Projects
 
 ```bash
 cb project list
+cb project list --json
 cb project show my-project
 cb project create "New Project"
 cb project update my-project --name "Renamed" --status archived
@@ -83,6 +94,22 @@ cb repo reopen-mr my-project my-repo 1
 cb repo reassign-mr my-project my-repo 1 42
 ```
 
+### PR (Merge Request Shorthand)
+
+The `pr` command provides a convenient shorthand for merge request operations, with auto-detection of project and repository from the git remote:
+
+```bash
+cb pr list                                        # auto-detect project/repo
+cb pr list my-project my-repo                     # explicit project/repo
+cb pr show 1 --project my-project --repo my-repo
+cb pr create feature-branch main "Add feature"    # auto-detect project/repo
+cb pr comment 1 "Looks good"
+cb pr merge 1
+cb pr close 1
+cb pr reopen 1
+cb pr reassign 1 42
+```
+
 ### Tickets
 
 ```bash
@@ -115,6 +142,41 @@ cb activity account --page 2
 cb activity project my-project
 cb activity project my-project --since "2026-01-01 00:00:00 +0000" --raw
 ```
+
+### Status Dashboard
+
+```bash
+cb status             # show all projects and recent activity
+cb status --json      # machine-readable output
+```
+
+### Browse (Open in Browser)
+
+```bash
+cb browse my-project           # open project page
+cb browse my-project my-repo   # open repository page
+cb browse my-project 42        # open ticket #42
+cb browse                      # auto-detect project from git remote
+```
+
+### Shell Completions
+
+```bash
+cb completions bash > ~/.bash_completion.d/cb
+cb completions zsh > ~/.zfunc/_cb
+cb completions fish > ~/.config/fish/completions/cb.fish
+```
+
+## Output
+
+All commands support `--json` for machine-readable JSON output. Human-readable output uses colored text:
+
+- **Status indicators**: green (active/open), yellow (in progress/on hold), red (closed/archived)
+- **Priority highlighting**: red bold (critical), red (high), yellow (normal), green (low)
+- **Ticket types**: red (bug), cyan (enhancement), blue (task)
+- **Merge request status**: green (open), magenta (merged), red (closed)
+- **Commit SHAs**: yellow (abbreviated to 7 chars)
+- **Branch names**: cyan
 
 ## License
 

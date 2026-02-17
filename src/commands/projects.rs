@@ -1,8 +1,10 @@
 use anyhow::Result;
 use clap::Subcommand;
+use colored::Colorize;
 
 use crate::api::client::CodebaseClient;
 use crate::api::projects;
+use crate::output;
 
 #[derive(Subcommand)]
 pub enum ProjectCommands {
@@ -51,39 +53,60 @@ pub enum ProjectCommands {
     },
 }
 
-pub async fn execute(client: &CodebaseClient, cmd: ProjectCommands) -> Result<()> {
+pub async fn execute(client: &CodebaseClient, cmd: ProjectCommands, json: bool) -> Result<()> {
     match cmd {
         ProjectCommands::List => {
-            let projects = projects::list_projects(client).await?;
-            for p in projects {
-                println!(
-                    "{} ({}) [{}]",
-                    p.name.unwrap_or_default(),
-                    p.permalink.unwrap_or_default(),
-                    p.status.unwrap_or_default()
-                );
-            }
+            let project_list = projects::list_projects(client).await?;
+            output::print_list(json, &project_list, |projects| {
+                for p in projects {
+                    let status = output::colorize_status(p.status.as_deref().unwrap_or("unknown"));
+                    println!(
+                        "{} ({}) [{}]",
+                        p.name.as_deref().unwrap_or("").bold(),
+                        p.permalink.as_deref().unwrap_or("").dimmed(),
+                        status,
+                    );
+                }
+            })?;
         }
         ProjectCommands::Show { permalink } => {
             let p = projects::show_project(client, &permalink).await?;
-            println!("Name:     {}", p.name.unwrap_or_default());
-            println!("Permalink: {}", p.permalink.unwrap_or_default());
-            println!("Status:   {}", p.status.unwrap_or_default());
-            println!("Overview: {}", p.overview.unwrap_or_default());
-            println!(
-                "Tickets:  {} open / {} closed / {} total",
-                p.open_tickets.unwrap_or(0),
-                p.closed_tickets.unwrap_or(0),
-                p.total_tickets.unwrap_or(0)
-            );
+            output::print_output(json, &p, || {
+                let status = output::colorize_status(p.status.as_deref().unwrap_or("unknown"));
+                println!(
+                    "{}: {}",
+                    "Name".dimmed(),
+                    p.name.as_deref().unwrap_or("").bold()
+                );
+                println!(
+                    "{}: {}",
+                    "Permalink".dimmed(),
+                    p.permalink.as_deref().unwrap_or("")
+                );
+                println!("{}: {}", "Status".dimmed(), status);
+                println!(
+                    "{}: {}",
+                    "Overview".dimmed(),
+                    p.overview.as_deref().unwrap_or("")
+                );
+                println!(
+                    "{}: {} open / {} closed / {} total",
+                    "Tickets".dimmed(),
+                    p.open_tickets.unwrap_or(0).to_string().green(),
+                    p.closed_tickets.unwrap_or(0).to_string().red(),
+                    p.total_tickets.unwrap_or(0),
+                );
+            })?;
         }
         ProjectCommands::Create { name } => {
             let p = projects::create_project(client, &name).await?;
-            println!(
-                "Created project: {} ({})",
-                p.name.unwrap_or_default(),
-                p.permalink.unwrap_or_default()
-            );
+            output::print_output(json, &p, || {
+                println!(
+                    "Created project: {} ({})",
+                    p.name.as_deref().unwrap_or("").bold(),
+                    p.permalink.as_deref().unwrap_or("")
+                );
+            })?;
         }
         ProjectCommands::Update {
             permalink,
@@ -93,7 +116,12 @@ pub async fn execute(client: &CodebaseClient, cmd: ProjectCommands) -> Result<()
             let p =
                 projects::update_project(client, &permalink, name.as_deref(), status.as_deref())
                     .await?;
-            println!("Updated project: {}", p.name.unwrap_or_default());
+            output::print_output(json, &p, || {
+                println!(
+                    "Updated project: {}",
+                    p.name.as_deref().unwrap_or("").bold()
+                );
+            })?;
         }
         ProjectCommands::Delete { permalink } => {
             projects::delete_project(client, &permalink).await?;
@@ -101,21 +129,29 @@ pub async fn execute(client: &CodebaseClient, cmd: ProjectCommands) -> Result<()
         }
         ProjectCommands::Groups => {
             let groups = projects::list_project_groups(client).await?;
-            for g in groups {
-                println!("{}: {}", g.id.unwrap_or(0), g.label.unwrap_or_default());
-            }
+            output::print_list(json, &groups, |groups| {
+                for g in groups {
+                    println!(
+                        "{}: {}",
+                        g.id.unwrap_or(0),
+                        g.label.as_deref().unwrap_or("").bold()
+                    );
+                }
+            })?;
         }
         ProjectCommands::Users { project } => {
             let users = projects::list_project_users(client, &project).await?;
-            for u in users {
-                println!(
-                    "{}: {} {} ({})",
-                    u.id.unwrap_or(0),
-                    u.first_name.unwrap_or_default(),
-                    u.last_name.unwrap_or_default(),
-                    u.username.unwrap_or_default()
-                );
-            }
+            output::print_list(json, &users, |users| {
+                for u in users {
+                    println!(
+                        "{}: {} {} ({})",
+                        u.id.unwrap_or(0),
+                        u.first_name.as_deref().unwrap_or(""),
+                        u.last_name.as_deref().unwrap_or(""),
+                        u.username.as_deref().unwrap_or("").dimmed()
+                    );
+                }
+            })?;
         }
         ProjectCommands::AssignUsers { project, user_ids } => {
             projects::assign_project_users(client, &project, &user_ids).await?;

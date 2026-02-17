@@ -1,8 +1,10 @@
 use anyhow::Result;
 use clap::Subcommand;
+use colored::Colorize;
 
 use crate::api::activity;
 use crate::api::client::CodebaseClient;
+use crate::output;
 
 #[derive(Subcommand)]
 pub enum ActivityCommands {
@@ -34,11 +36,13 @@ pub enum ActivityCommands {
     },
 }
 
-pub async fn execute(client: &CodebaseClient, cmd: ActivityCommands) -> Result<()> {
+pub async fn execute(client: &CodebaseClient, cmd: ActivityCommands, json: bool) -> Result<()> {
     match cmd {
         ActivityCommands::Account { raw, since, page } => {
             let events = activity::account_activity(client, raw, since.as_deref(), page).await?;
-            print_events(&events);
+            output::print_list(json, &events, |events| {
+                print_events(events);
+            })?;
         }
         ActivityCommands::Project {
             project,
@@ -48,7 +52,9 @@ pub async fn execute(client: &CodebaseClient, cmd: ActivityCommands) -> Result<(
         } => {
             let events =
                 activity::project_activity(client, &project, raw, since.as_deref(), page).await?;
-            print_events(&events);
+            output::print_list(json, &events, |events| {
+                print_events(events);
+            })?;
         }
     }
     Ok(())
@@ -58,8 +64,8 @@ fn print_events(events: &[crate::api::models::Event]) {
     for e in events {
         println!(
             "[{}] {} — {}",
-            e.event_type.as_deref().unwrap_or("unknown"),
-            e.timestamp.as_deref().unwrap_or(""),
+            e.event_type.as_deref().unwrap_or("unknown").cyan(),
+            e.timestamp.as_deref().unwrap_or("").dimmed(),
             e.title.as_deref().unwrap_or("")
         );
     }
