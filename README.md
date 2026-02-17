@@ -12,13 +12,13 @@ This installs the `cb` binary.
 
 ## Configuration
 
-Set these environment variables with your CodebaseHQ credentials:
+```bash
+cb login account/username your-api-key
+```
 
-```
-export CODEBASE_ACCOUNT=your-account
-export CODEBASE_USERNAME=your-username
-export CODEBASE_API_KEY=your-api-key
-```
+Credentials are stored in `~/.config/cb/config.toml`. The API username format is `account/username` (e.g. `mycompany/jdoe`).
+
+The client automatically retries with exponential backoff on 429 (rate limit), 503 (service unavailable), and 529 (overloaded) responses.
 
 ## Usage
 
@@ -46,12 +46,27 @@ cb repo list my-project
 cb repo show my-project my-repo
 cb repo create my-project "New Repo" --scm git
 cb repo delete my-project my-repo
+```
+
+### Branches and Commits
+
+```bash
 cb repo branches my-project my-repo
 cb repo commits my-project my-repo main
 cb repo commits my-project my-repo main --path src/lib.rs
 cb repo file my-project my-repo main README.md
+```
+
+### Hooks
+
+```bash
 cb repo hooks my-project my-repo
 cb repo create-hook my-project my-repo https://example.com/webhook --username user --password pass
+```
+
+### Deployments
+
+```bash
 cb repo deploy my-project my-repo main abc123def "app1.example.com,app2.example.com" --environment production
 ```
 
